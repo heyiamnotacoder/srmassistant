@@ -1,27 +1,32 @@
 # SRM Assistant
 
-An LLM-agnostic harness for extracting structured data from research paper PDFs for **systematic reviews and meta-analyses (SRMA)**.
+An LLM-agnostic harness for **systematic reviews and meta-analyses (SRMA)**: title/abstract screening of database search results, then structured data extraction from the surviving PDFs.
 
 ```
-protocol docs (PICO / PROSPERO / extraction template)
-        │
+STAGE 1 — SCREENING                      STAGE 2 — EXTRACTION
+database exports (.ris / .nbib)          protocol docs (PICO / PROSPERO / template)
+        │                                        │
+        ▼                                        ▼
+  parse + dedupe + batch                   JSON extraction schema ←— you confirm it
+  (scripts/parse_citations.py)                   │
+        │                                        ▼
+        ▼                                  one extraction agent per PDF
+  screening criteria ←— you confirm        each → extractions/<paper>.json
+        │                                  with per-field confidence
+        ▼                                        │
+  DUAL-PASS screening: every batch               ▼
+  judged by 2 independent agents           merge_extractions.py
+  agree → verdict; disagree → maybe              │
+        │                                        ▼
+        ▼                                  extraction_sheet.csv (RevMan/R-ready)
+  merge_screening.py                       confidence_report.csv
+        │                                  missing_data_report.md
         ▼
-  JSON extraction schema  ←— you confirm it before anything runs
-        │
-        ▼
-  one extraction per PDF (parallel agents, or sequential, or manual chat)
-  each produces extractions/<paper>.json with per-field confidence scores
-        │
-        ▼
-  python3 scripts/merge_extractions.py
-        │
-        ▼
-  output/extraction_sheet.csv        ←— clean values, ready for RevMan / R
-  output/confidence_report.csv      ←— per-field 0–1 confidence
-  output/missing_data_report.md     ←— NR fields, flags, papers needing human review
+  screening_results.csv + PRISMA counts
+  included_maybe.ris  ──→ retrieve PDFs ──→ papers/ (feeds Stage 2)
 ```
 
-The workflow logic lives in plain markdown — `prompts/orchestrator.md` and `prompts/extractor.md` — so **any capable LLM can run it**: Claude, GPT, Gemini, or whatever comes next. Vendor-specific files are thin adapters.
+The workflow logic lives in plain markdown under `prompts/` — so **any capable LLM can run it**: Claude, GPT, Gemini, or whatever comes next. Vendor-specific files are thin adapters.
 
 ## Requirements
 
@@ -32,29 +37,35 @@ The workflow logic lives in plain markdown — `prompts/orchestrator.md` and `pr
 
 **1. Drop your files in:**
 - `protocol/` — PROSPERO application, PICO notes, and/or an existing extraction sheet template (its columns become the schema).
-- `papers/` — the PDFs for this review batch (descriptive names, e.g. `smith_2023.pdf`).
+- `screening/exports/` — database search exports (`.ris` from Embase/Scopus/WoS/CENTRAL, `.nbib` from PubMed) if you want AI-assisted screening.
+- `papers/` — the PDFs for extraction (descriptive names, e.g. `smith_2023.pdf`). If you screened first, these are the include/maybe survivors.
 
-**2. Run the workflow with your tool of choice:**
+**2. Run the workflows with your tool of choice:**
 
 ### Claude Code
 ```
-/srma-extract
+/srma-screen     # Stage 1: screen titles/abstracts (skip if you screened in Rayyan)
+/srma-extract    # Stage 2: extract data from PDFs
 ```
-That's it — the skill runs the full pipeline with one parallel subagent per PDF (project agent ships in `.claude/agents/`, `model: inherit` so it uses whatever model you run).
+Both run with parallel subagents (project agents ship in `.claude/agents/`, `model: inherit` so they use whatever model you run).
 
 ### Other agentic CLIs (Codex, Gemini CLI, Cursor, aider, ...)
 These pick up `AGENTS.md` automatically. Just ask:
+> Run the SRMA screening workflow in prompts/screening-orchestrator.md
 > Run the SRMA extraction workflow in prompts/orchestrator.md
 
-Tools without subagents use the workflow's **sequential mode** (one paper at a time, fresh context per paper) — same outputs, just not parallel.
+Tools without subagents use the workflows' **sequential mode** (one unit of work at a time, fresh context each) — same outputs, just not parallel.
 
 ### Chat UIs (ChatGPT, Gemini, Claude web)
-No file access needed — you drive it manually:
-1. **Schema**: new chat → attach your protocol documents → paste Phase A of `prompts/orchestrator.md` → save the returned JSON as `schema/extraction_schema.json`.
-2. **Per paper**: new chat → paste `prompts/extractor.md` → attach the schema + ONE PDF → save the returned JSON code block as `extractions/<pdf-name>.json`. (One chat per paper — don't mix papers.)
-3. **Merge**: `python3 scripts/merge_extractions.py` → outputs land in `output/`.
+No file access needed — you drive it manually. Screening: run `python3 scripts/parse_citations.py` locally, then one chat per batch-pass (paste `prompts/screener.md`, attach `criteria.json` + the batch file, save the returned JSON into `screening/decisions/`), then `python3 scripts/merge_screening.py`. Extraction: one chat for the schema (Phase A of `prompts/orchestrator.md` + protocol docs), then one chat per paper (`prompts/extractor.md` + schema + ONE PDF → save JSON to `extractions/`), then `python3 scripts/merge_extractions.py`.
 
-**3. Review the outputs** — especially `output/missing_data_report.md`: papers with overall confidence below 0.70 are flagged for mandatory human verification, and every extracted value carries a source pin (e.g. "Table 2, p.5") so spot-checking is fast.
+**3. Review the outputs:**
+- Screening: `screening/screening_report.md` — PRISMA counts, A/B conflicts, low-confidence excludes to spot-check; import `screening/included_maybe.ris` into Rayyan/EndNote/Zotero for full-text retrieval.
+- Extraction: `output/missing_data_report.md` — papers under 0.70 confidence are flagged for mandatory human verification, and every value carries a source pin (e.g. "Table 2, p.5") so spot-checking is fast.
+
+## Why batches for screening? (cost vs context rot)
+
+One agent per record would mean thousands of agent spawns for a typical search (slow, expensive). One agent screening everything degrades silently as its context fills with hundreds of abstracts ("context rot"). A title+abstract is only ~300 tokens, so the sweet spot is **one agent per batch of ~40 records** — a 2,000-record search becomes ~50 fresh-context batch runs per pass instead of 2,000, with no batch ever near context limits. Dual-pass (every batch judged twice, independently; disagreements demoted to `maybe`) mirrors Cochrane dual screening and catches individual judgment slips.
 
 ## Why per-paper JSON files?
 
@@ -62,10 +73,16 @@ Parallel extractors writing to one shared CSV corrupt each other. One JSON per p
 
 ## Data integrity rules
 
+- Screening errs toward inclusion: ambiguous or abstract-less records become `maybe`, never `exclude`; every exclude carries a PRISMA reason code; screeners see title/abstract only (no full-text peeking, no web lookups).
+- AI screening is a screening aid — humans review the maybes, spot-check excludes, and report its use in the methods section.
 - Values are extracted **exactly as reported** — derived values (e.g., SD from SE) are flagged with the formula used.
 - `NR` (not reported) vs `NA` (not applicable) — never blank, never guessed.
 - ITT data by default; tables trump text trump abstract when sources conflict.
 - Extraction sheet cells stay clean (no annotations) — notes and flags live in the missing-data report.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
 
 ## What's tracked in git
 

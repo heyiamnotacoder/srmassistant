@@ -10,3 +10,7 @@ schema/*.json
 extractions/*.json
 output/*
 !output/.gitkeep
+screening/*
+!screening/exports/
+screening/exports/*
+!screening/exports/README.md
