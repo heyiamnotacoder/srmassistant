@@ -1,22 +1,8 @@
-# SRM Assistant — SRMA Data Extraction Harness
+# SRM Assistant — Claude Code notes
 
-Harness for extracting structured data from research paper PDFs for systematic reviews and meta-analyses. Run `/srma-extract` to start or continue an extraction batch — it drives the full pipeline: protocol → JSON schema (user-confirmed) → one `srma-data-extractor` subagent per PDF in parallel → merged outputs.
+SRMA data extraction harness. See `AGENTS.md` for the layout and conventions, `README.md` for the human-facing overview. The canonical workflow logic is in `prompts/orchestrator.md` and `prompts/extractor.md` — treat those as the source of truth; the Claude files below are adapters.
 
-## Layout
-
-| Path | Purpose |
-|---|---|
-| `protocol/` | User drops PROSPERO application, PICO notes, and/or an extraction sheet template (CSV/XLSX) here |
-| `papers/` | The PDFs to extract, one review batch at a time |
-| `schema/extraction_schema.json` | Generated extraction schema — must be user-confirmed before extraction |
-| `extractions/` | Per-paper JSON written by subagents (`<pdf-stem>.json`) |
-| `output/` | Merged `extraction_sheet.csv`, `confidence_report.csv`, `missing_data_report.md` |
-| `scripts/merge_extractions.py` | Deterministic merge (stdlib only): `python3 scripts/merge_extractions.py` |
-
-## Conventions
-
-- One review at a time. Archive or clear `papers/`, `schema/`, `extractions/`, `output/` before starting a new review.
-- Missing values are `NR` (not reported) vs `NA` (not applicable) — never blank, never guessed.
-- Papers with overall confidence < 0.70 require human verification (listed in the missing-data report).
-- The per-PDF extractor agent lives at `~/.claude/agents/srma-data-extractor.md` (user scope). Its `model:` field (currently `sonnet`) is the knob to turn if extraction quality is insufficient.
-- To re-run one paper: delete its `extractions/<pdf-stem>.json`, re-run `/srma-extract` (it skips papers that already have valid extractions), then re-merge.
+- Run `/srma-extract` to start or continue an extraction batch (parallel mode: one subagent per PDF, batches of ≤5).
+- The project-scoped extractor agent is `.claude/agents/srma-data-extractor.md` with `model: inherit` — it runs on whatever model the session uses. Pin an explicit `model:` there if you need to fix extraction quality/cost independent of the session model.
+- Merge step: `python3 scripts/merge_extractions.py` (stdlib only).
+- Never edit files in `prompts/` for a Claude-specific need — put Claude mechanics in the skill or agent adapter so the prompts stay tool-agnostic.
