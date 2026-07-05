@@ -1,0 +1,12 @@
+.DS_Store
+
+# Papers are copyrighted — never push them to GitHub
+papers/*.pdf
+
+# Per-review working data (archive locally instead)
+protocol/*
+!protocol/README.md
+schema/*.json
+extractions/*.json
+output/*
+!output/.gitkeep
