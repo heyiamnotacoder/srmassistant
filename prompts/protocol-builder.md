@@ -128,10 +128,26 @@ screening exercise.
 
 1. **Draft search strings** per database the review will use — at minimum the concept blocks for
    population, intervention, and design, with the controlled vocabulary each database uses (MeSH for
-   PubMed/MEDLINE, Emtree for Embase).
-2. **Run what you can reach.** If the harness offers literature search tools, run the population and
-   intervention blocks and report **result volumes**, not candidate study lists. If it has no search access,
-   hand the strings to the human to run and report counts back.
+   PubMed/MEDLINE, Emtree for Embase). Write each one down as a **line-numbered strategy** in
+   `protocol/search/strategy_<db>.txt`, one `N|query` per line with `#N` referring back to an earlier line,
+   so the strategy is a record from the moment it exists rather than something reconstructed later:
+
+   ```
+   1|"Dermatitis, Atopic"[Mesh]
+   2|"atopic dermatitis"[tiab] OR "atopic eczema"[tiab]
+   3|#1 OR #2
+   ```
+
+2. **Run what you can reach.** For PubMed, run the numbered strategy with
+   `python3 scripts/run_pubmed_strategy.py protocol/search/strategy_pubmed.txt --csv protocol/search/pubmed_counts.csv`
+   — it resolves `#N` on NCBI's history server and gives a hit count per line, which is what shows where a
+   block is doing the work. If the harness offers other literature search tools, run the population and
+   intervention blocks with those and report **result volumes**, not candidate study lists. If it has no
+   search access, hand the strings to the human to run and record the counts they report back.
+
+   Keep the strategy files, the per-line counts, and a `protocol/search/search_log.md` (database, platform,
+   date run, final yield, who ran it) for every database — PROSPERO asks for a full strategy and PRISMA
+   items 6–7 ask for all of it.
 3. **Report to the human as numbers and shapes:**
    - Approximate yield of the unrestricted question
    - How much each restriction changes it (design limit, date limit, language limit)
@@ -178,7 +194,7 @@ seeing the data are the classic route to a spurious finding.
 
 ## Phase P-E — Emit the artifacts
 
-Generate all three from the same decision set so they cannot drift apart.
+Generate them all from the same decision set so they cannot drift apart.
 
 1. **`protocol/pico.json`** — canonical:
 
@@ -239,12 +255,17 @@ Generate all three from the same decision set so they cannot drift apart.
    the scoping search has run, that is Pilot work started and nothing else. Never tick optimistically: this
    matrix is the register's own record of how prospective the registration really is.
 
-3. **`screening/criteria.json`** — derived from `pico.json`, in the shape Stage 1 consumes: review title,
+3. **`protocol/search/`** — the line-numbered strategy per database and its per-line counts, as written
+   during Phase P-C, plus `search_log.md`. Already on disk by this point; confirm here that every string
+   reported to the human is the string actually recorded, and that no yield in `scoping_search` lacks a
+   strategy file behind it.
+
+4. **`screening/criteria.json`** — derived from `pico.json`, in the shape Stage 1 consumes: review title,
    PICO, `include_criteria`, and coded `exclude_criteria` ordered by how decisively each can be judged from
    an abstract (design and population first, outcomes last). Every `Excluded` decision from Phase P-B should
    map to a reason code; codes feed the PRISMA flow diagram.
 
-Present all three to the human. `prospero_draft.md` is the one they will act on — walk them through the
+Present them all to the human. `prospero_draft.md` is the one they will act on — walk them through the
 `⚠ NEEDS INPUT` items first.
 
 ---

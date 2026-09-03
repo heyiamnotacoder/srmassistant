@@ -1,4 +1,6 @@
 .DS_Store
+__pycache__/
+*.pyc
 
 # Papers are copyrighted — never push them to GitHub
 papers/*.pdf
@@ -6,7 +8,14 @@ papers/*.pdf
 # Per-review working data (archive locally instead)
 protocol/*
 !protocol/README.md
+!protocol/search/
+!protocol/search/README.md
+protocol/search/*
+!protocol/search/README.md
 protocol/amendments/*
+!protocol/search/
+protocol/search/*
+!protocol/search/README.md
 schema/*.json
 extractions/*.json
 output/*

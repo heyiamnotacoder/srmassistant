@@ -27,20 +27,37 @@ PROSPERO, skip this stage — record `protocol/registration.json` and go straigh
 - **Phase P-C (scoping search)** — this session has literature tools; use them rather than asking the user
   to run searches by hand:
   - `mcp__claude_ai_PubMed__search_articles` for yield counts per concept block and per restriction. Report
-    **counts and design mix**, not candidate study lists.
+    **counts and design mix**, not candidate study lists. Read `total_count`, not the returned records.
+    **Its `date_from` / `date_to` parameters are silently ignored** (verified 2026-09-03: a query with
+    `date_from: 2017` returned the same `total_count` and the same PMIDs as the unrestricted query). Put
+    date limits in the query string instead — `AND 2017:2026[dp]` — which does filter correctly. Sanity-check
+    any date-restricted yield against its unrestricted counterpart before reporting it.
   - `mcp__claude_ai_Clinical_Trials__search_trials` for ongoing/unpublished trials worth noting.
   - For the `Check for similar records already in PROSPERO` field, search the register itself. It is a JS
     single-page app, so WebFetch returns an empty shell — drive it with Playwright per the user's
     `playwright-web-check` skill (global install at `/opt/homebrew/lib/node_modules/playwright`; import the
     CommonJS default export, navigate with `waitUntil: "domcontentloaded"` plus a wait, not `networkidle`).
     Records render at `https://www.crd.york.ac.uk/PROSPERO/view/<CRD-number>`.
+    Two search gotchas: `/PROSPERO/search?q=<term>` does **not** run the search — it renders the empty form,
+    so fill the first text input and press Enter. And PROSPERO treats bare multi-word input as a single
+    phrase, so `atopic dermatitis network meta-analysis` returns nothing; use quoted Boolean syntax
+    (`"atopic dermatitis" AND "network meta-analysis"`). The result count appears as `N results` in the
+    page text.
+  - Record every strategy as a line-numbered file in `protocol/search/strategy_<db>.txt` (`N|query`, `#N`
+    back-references) and run the PubMed one with
+    `python3 scripts/run_pubmed_strategy.py protocol/search/strategy_pubmed.txt --csv protocol/search/pubmed_counts.csv`.
+    It resolves `#N` on NCBI's history server, so it reports a hit count per line — that per-line breakdown
+    is what the MCP search tool cannot give you, and it is what PROSPERO and PRISMA items 6–7 ask for.
+    Do not expand `#N` textually into one giant query: the resulting URL is multi-kilobyte and E-utilities
+    answers it with a 502.
   - If a tool is unavailable, hand the user the search strings and take their counts — never fabricate a yield.
 
 - **Phase P-D (methods)** — same AskUserQuestion pattern, defaults matched to the review type (RoB 2 for
   RCTs, ROBINS-I for non-randomised interventions, QUADAS-2 for diagnostic accuracy, QUIPS for prognosis).
 
-- **Phase P-E (emit)** — write `protocol/pico.json`, `protocol/prospero_draft.md`, and
-  `screening/criteria.json` with the Write tool. Generate the draft against
+- **Phase P-E (emit)** — write `protocol/pico.json`, `protocol/prospero_draft.md` and
+  `screening/criteria.json` with the Write tool; `protocol/search/` should already be on disk from Phase
+  P-C, so check it is complete rather than regenerating it. Generate the draft against
   `prompts/reference/prospero-fields.md`, marking every field **free / pick / struct / auto**. Put each
   free-text answer in its own fenced block so it can be copied cleanly, and quote each pick-list option
   exactly as PROSPERO words it. Publishing the draft as an Artifact is a good option when the user wants to
