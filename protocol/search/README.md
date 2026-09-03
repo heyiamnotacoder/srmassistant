@@ -13,6 +13,8 @@ those items are transcribed from a record, not reconstructed from memory.
 | `strategy_<db>.txt` | The line-numbered strategy for one database, `N\|query` per line (see below) |
 | `<db>_counts.csv` | Hit count per strategy line — `line,query,results,note` — produced by the runner |
 | `search_log.md` | Per-database run record: platform/interface, date run, final yield, deduplication notes, who ran it |
+| `search_strategies.csv` | All strategies flattened to one machine-readable table |
+| `search_strategies.docx` | The strategies as a Word appendix — the format PROSPERO's "Link to search strategy" field and journal PRISMA-S supplements expect |
 
 Scoping-search yields also land in `protocol/pico.json` under `scoping_search`; this folder holds the full
 strings and the per-line arithmetic behind those numbers.

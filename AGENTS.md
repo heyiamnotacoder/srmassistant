@@ -24,7 +24,7 @@ Both stages offer three execution modes — pick what your harness supports: par
 | `schema/extraction_schema.json` | Generated schema — must be human-confirmed before extraction |
 | `extractions/` | Per-paper JSON written by extractors (`<pdf-stem>.json`) |
 | `output/` | Merged `extraction_sheet.csv`, `confidence_report.csv`, `missing_data_report.md` |
-| `scripts/` | `run_pubmed_strategy.py`, `parse_citations.py`, `merge_screening.py`, `merge_extractions.py` (stdlib only) |
+| `scripts/` | `run_pubmed_strategy.py`, `export_search_csv.py`, `make_search_docx.py`, `parse_citations.py`, `merge_screening.py`, `merge_extractions.py` (stdlib only) |
 | `.claude/` | Claude Code adapters only (skills + project agents); other tools ignore this |
 
 ## Conventions
