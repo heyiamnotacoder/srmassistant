@@ -6,6 +6,7 @@ papers/*.pdf
 # Per-review working data (archive locally instead)
 protocol/*
 !protocol/README.md
+protocol/amendments/*
 schema/*.json
 extractions/*.json
 output/*

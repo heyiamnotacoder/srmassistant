@@ -6,11 +6,22 @@ All paths are relative to the project root. Agents with file access should resol
 
 ## Phase A — Schema generation
 
-1. Read every file in `protocol/`:
-   - PROSPERO application (PDF/Word/text) — review title, PICO, eligibility criteria, outcome definitions.
+1. Read the protocol, in this order of authority:
+   - **`protocol/pico.json`** (written by Stage 0, `prompts/protocol-builder.md`) — if present, this is the
+     source of truth for outcomes, PICO, and `analysis_population_default`.
+   - PROSPERO application or registered record (PDF/Word/text) — review title, PICO, eligibility criteria,
+     outcome definitions.
    - PICO notes or protocol drafts.
    - Any extraction sheet template (CSV/XLSX) — **if present, its column names and order define the schema fields**.
-   - If `protocol/` is empty, stop and ask the human to drop their protocol documents there.
+   - If `protocol/` is empty, stop. Point the human at Stage 0 (`prompts/protocol-builder.md`) rather than
+     inferring a protocol from the PDFs — see the outcome rule below.
+
+   **Outcome fields are bound by the protocol, not by the papers.** Every outcome in the schema must trace to
+   an outcome registered in the protocol, with the same definition, instrument, unit and timepoint. Building
+   outcome fields from what the PDFs happen to report is selective outcome reporting — the bias reviewers
+   hunt hardest, and a worse problem than criteria drift. If a paper reports something valuable that the
+   protocol never registered, extract it only as an explicitly marked post-hoc field, and tell the human it
+   needs a protocol amendment before it can be reported as a review outcome.
 
 2. Write `schema/extraction_schema.json`:
 
@@ -43,7 +54,7 @@ All paths are relative to the project root. Agents with file access should resol
    - Always include study-identification fields first (`study_id`, `first_author`, `year`, `trial_registration`, `study_design`) unless the template already has equivalents.
    - Choose `row_format` from the protocol: multi-arm dose comparisons or multiple timepoints usually need a long format.
 
-3. **Present the schema to the human and get explicit confirmation before Phase B.** Summarize the fields, row format, and any judgment calls (inferred units, ITT default). Never extract against an unconfirmed schema.
+3. **Present the schema to the human and get explicit confirmation before Phase B.** Summarize the fields, row format, and any judgment calls (inferred units, ITT default). Name explicitly any registered outcome you could not turn into a field, and any field that has no registered outcome behind it. Never extract against an unconfirmed schema.
 
 ## Phase B — Extraction (one paper at a time, one extractor per paper)
 
@@ -98,3 +109,5 @@ The human drives:
 - Never edit extraction values during merge — the per-paper JSONs are the source of truth; disagreements get flagged, not silently fixed.
 - Papers added mid-review: only extract the new ones (resume behavior), then re-merge.
 - `NR` = not reported, `NA` = not applicable — never blank, never guessed.
+- Outcomes trace to the protocol. Adding an outcome mid-extraction because the papers report it is a protocol
+  amendment (record it in `protocol/amendments/`), not a schema tweak.
